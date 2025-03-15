@@ -110,56 +110,90 @@ def create_web_ui():
         Upload a PDF or image file to extract text using Mistral's OCR API.
         """)
         
-        with gr.Row():
+        with gr.Column():
+            api_key = gr.Textbox(
+                label="Mistral API Key",
+                placeholder="Enter your API key or set MISTRAL_API_KEY environment variable",
+                value=os.getenv("MISTRAL_API_KEY", ""),
+                type="password"
+            )
             with gr.Column():
-                api_key = gr.Textbox(
-                    label="Mistral API Key",
-                    placeholder="Enter your API key or set MISTRAL_API_KEY environment variable",
-                    value=os.getenv("MISTRAL_API_KEY", ""),
-                    type="password"
+                file_input = gr.File(
+                    label="Upload File",
+                    file_types=[".pdf", ".png", ".jpg", ".jpeg"],
+                    type="filepath"
                 )
-                with gr.Column():
-                    file_input = gr.File(
-                        label="Upload File",
-                        file_types=[".pdf", ".png", ".jpg", ".jpeg"],
-                        type="filepath"
-                    )
-                    image_preview = gr.Image(
-                        label="Image Preview",
-                        visible=False,
-                        width=400
-                    )
-                format_input = gr.Radio(
-                    choices=["markdown", "html"],
-                    value="markdown",
-                    label="Output Format"
+                image_preview = gr.Image(
+                    label="Image Preview",
+                    visible=False,
+                    width=400
                 )
-                submit_btn = gr.Button("Process")
+            format_input = gr.Radio(
+                choices=["markdown", "html"],
+                value="markdown",
+                label="Output Format"
+            )
+            submit_btn = gr.Button("Process")
 
-                # 添加文件改变事件处理
-                def update_preview(file_obj):
-                    if file_obj is None:
-                        return None, gr.update(visible=False)
-                    
-                    file_ext = Path(file_obj.name).suffix.lower()
-                    if file_ext in ['.png', '.jpg', '.jpeg']:
-                        return file_obj.name, gr.update(visible=True)
+            # 添加文件改变事件处理
+            def update_preview(file_obj):
+                if file_obj is None:
                     return None, gr.update(visible=False)
+                
+                file_ext = Path(file_obj.name).suffix.lower()
+                if file_ext in ['.png', '.jpg', '.jpeg']:
+                    return file_obj.name, gr.update(visible=True)
+                return None, gr.update(visible=False)
 
-                file_input.change(
-                    fn=update_preview,
-                    inputs=[file_input],
-                    outputs=[image_preview, image_preview]
-                )
+            file_input.change(
+                fn=update_preview,
+                inputs=[file_input],
+                outputs=[image_preview, image_preview]
+            )
+        
+
+        with gr.Column():
+            output = gr.TextArea(
+                label="Results",
+                interactive=True,
+                show_copy_button=False,
+                lines=20,
+            )
             
-            with gr.Column():
-                with gr.Column():
-                    output = gr.TextArea(
-                        label="Results",
-                        interactive=True,  # 改为可交互
-                        show_copy_button=False,
-                        lines=20,
-                    )
+            # 使用 gr.Button 和 gr.File 组件来实现下载功能
+            def create_download_file(text):
+                if not text:
+                    return None, "没有内容可供下载"
+                # 创建临时文件
+                temp_file = "ocr_result.txt"
+                with open(temp_file, "w", encoding="utf-8") as f:
+                    f.write(text)
+                return temp_file, "文件已准备好下载！"
+            
+            download_btn = gr.Button("下载结果")
+            download_output = gr.File(
+                label="Download",
+                visible=False,
+            )
+            download_status = gr.Textbox(
+                label="下载状态",
+                interactive=False,
+                visible=True
+            )
+            
+            # 点击下载按钮时触发下载
+            download_btn.click(
+                fn=create_download_file,
+                inputs=[output],
+                outputs=[download_output, download_status],
+            )
+            
+            # 处理按钮点击事件
+            submit_btn.click(
+                fn=process_file,
+                inputs=[file_input, api_key, format_input],
+                outputs=[output]
+            )
 
         # 添加按钮点击事件处理
         submit_btn.click(
